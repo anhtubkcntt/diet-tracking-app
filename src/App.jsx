@@ -51,7 +51,7 @@ function App() {
       const mimeType = file.type;
 
       // Gọi Gemini API
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -65,12 +65,16 @@ function App() {
       });
 
       const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error.message);
+      }
       let resultText = data.candidates[0].content.parts[0].text;
       
-      // Xoá markdown (nếu AI ngoan cố trả về ```json)
-      resultText = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+      // Tìm đúng đoạn text nằm trong ngoặc nhọn {} để tránh AI nói nhảm thêm chữ
+      const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("Không tìm thấy JSON hợp lệ từ AI");
       
-      const aiResult = JSON.parse(resultText);
+      const aiResult = JSON.parse(jsonMatch[0]);
       
       setFormData({
         ...formData,
