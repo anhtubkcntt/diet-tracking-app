@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 
 // TODO: Thay bằng Web App URL do user cung cấp
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzlYwq4lKUJz4f6B5GYAsfM-JB2X2izkGsVjEvgO6QhIDPM3bAQ_cqyYtRVb8NW_3jnVg/exec';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 function App() {
   const [meals, setMeals] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [goal, setGoal] = useState(2000); // Tạm đặt mục tiêu 2000 kcal
   const [formData, setFormData] = useState({ name: '', calories: '', mealType: 'Sáng' });
 
@@ -29,6 +31,62 @@ function App() {
 
   const totalCalories = meals.reduce((sum, meal) => sum + Number(meal.calories || 0), 0);
   const progressPercent = Math.min((totalCalories / goal) * 100, 100);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    try {
+      // Đọc file thành base64
+      const base64String = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+
+      // Bỏ đi đoạn prefix 'data:image/jpeg;base64,'
+      const base64Data = base64String.split(',')[1];
+      const mimeType = file.type;
+
+      // Gọi Gemini API
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: "Bạn là chuyên gia dinh dưỡng. Hãy nhìn bức ảnh này, xác định tên món ăn và ước lượng số Calo của nó. Phản hồi của bạn CHỈ ĐƯỢC CHỨA ĐÚNG 1 CHUỖI JSON, KHÔNG có định dạng markdown, KHÔNG có chữ nào khác ngoài JSON. Ví dụ: {\"name\": \"Phở bò\", \"calories\": 450}" },
+              { inline_data: { mime_type: mimeType, data: base64Data } }
+            ]
+          }]
+        })
+      });
+
+      const data = await response.json();
+      let resultText = data.candidates[0].content.parts[0].text;
+      
+      // Xoá markdown (nếu AI ngoan cố trả về ```json)
+      resultText = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      const aiResult = JSON.parse(resultText);
+      
+      setFormData({
+        ...formData,
+        name: aiResult.name || '',
+        calories: aiResult.calories || ''
+      });
+      alert(`AI đã nhận diện: ${aiResult.name} (~${aiResult.calories} Calo)`);
+
+    } catch (error) {
+      console.error('Lỗi nhận diện ảnh:', error);
+      alert('Không thể nhận diện ảnh. Vui lòng thử lại!');
+    }
+    setIsScanning(false);
+    // Reset ô input file để có thể chọn lại cùng 1 ảnh
+    e.target.value = null;
+  };
 
   const handleAddMeal = async (e) => {
     e.preventDefault();
@@ -154,9 +212,15 @@ function App() {
             </div>
           </div>
           
-          <button type="submit" className="btn" style={{width: '100%'}} disabled={loading || !WEB_APP_URL}>
-            {loading ? 'Đang lưu...' : '+ Thêm món'}
-          </button>
+          <div className="form-group">
+            <button type="submit" className="btn" style={{width: '100%'}} disabled={loading || !WEB_APP_URL}>
+              {loading ? 'Đang lưu...' : '+ Thêm món'}
+            </button>
+            <label className="btn-secondary scan-btn" style={{ cursor: 'pointer', textAlign: 'center', display: 'block', marginTop: '10px', padding: '10px', background: '#e0e0e0', borderRadius: '8px' }}>
+              {isScanning ? '✨ AI Đang Phân Tích...' : '📷 Quét Ảnh bằng AI'}
+              <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} disabled={isScanning}/>
+            </label>
+          </div>
         </form>
       </div>
 
