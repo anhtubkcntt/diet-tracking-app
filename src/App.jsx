@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // TODO: Thay bằng Web App URL do user cung cấp
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzlYwq4lKUJz4f6B5GYAsfM-JB2X2izkGsVjEvgO6QhIDPM3bAQ_cqyYtRVb8NW_3jnVg/exec';
@@ -28,6 +29,32 @@ function App() {
   useEffect(() => {
     fetchMeals();
   }, []);
+
+  // Tính toán dữ liệu 7 ngày gần nhất
+  const chartData = useMemo(() => {
+    const data = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateString = d.toLocaleDateString('vi-VN');
+      
+      const dailyMeals = meals.filter(meal => {
+        if (!meal.date) return false;
+        return new Date(meal.date).toLocaleDateString('vi-VN') === dateString;
+      });
+      
+      const dailyCalories = dailyMeals.reduce((sum, meal) => sum + Number(meal.calories || 0), 0);
+      
+      let label = `${d.getDate()}/${d.getMonth() + 1}`;
+      if (i === 0) label = "Hôm nay";
+      
+      data.push({
+        name: label,
+        calo: dailyCalories
+      });
+    }
+    return data;
+  }, [meals]);
 
   // Lấy danh sách bữa ăn của "hôm nay"
   const todayString = new Date().toLocaleDateString('vi-VN');
@@ -235,7 +262,29 @@ function App() {
         </form>
       </div>
 
-      <div className="glass-card">
+      <div className="glass-card" style={{height: '350px', paddingBottom: '30px', marginTop: '2rem'}}>
+        <h2 style={{marginBottom: '1rem'}}>Thống kê 7 ngày</h2>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id="colorCalo" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--primary-color)" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="var(--primary-color)" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <XAxis dataKey="name" stroke="var(--text-color)" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--text-color)" fontSize={12} tickLine={false} axisLine={false} />
+            <Tooltip 
+              contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '8px', border: 'none', color: '#333' }}
+              itemStyle={{ color: 'var(--primary-color)', fontWeight: 'bold' }}
+            />
+            <Area type="monotone" dataKey="calo" name="Calo" stroke="var(--primary-color)" fillOpacity={1} fill="url(#colorCalo)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="glass-card" style={{marginTop: '2rem'}}>
         <h2 style={{marginBottom: '1rem'}}>Hôm nay</h2>
         {!WEB_APP_URL ? (
            <p style={{textAlign: 'center', color: 'var(--danger-color)', fontWeight: 'bold'}}>
