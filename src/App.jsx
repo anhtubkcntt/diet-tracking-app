@@ -29,7 +29,14 @@ function App() {
     fetchMeals();
   }, []);
 
-  const totalCalories = meals.reduce((sum, meal) => sum + Number(meal.calories || 0), 0);
+  // Lấy danh sách bữa ăn của "hôm nay"
+  const todayString = new Date().toLocaleDateString('vi-VN');
+  const todayMeals = meals.filter(meal => {
+    if (!meal.date) return false;
+    return new Date(meal.date).toLocaleDateString('vi-VN') === todayString;
+  });
+
+  const totalCalories = todayMeals.reduce((sum, meal) => sum + Number(meal.calories || 0), 0);
   const progressPercent = Math.min((totalCalories / goal) * 100, 100);
 
   const handleImageUpload = async (e) => {
@@ -234,11 +241,11 @@ function App() {
            <p style={{textAlign: 'center', color: 'var(--danger-color)', fontWeight: 'bold'}}>
              Đang chờ kết nối Google Sheets...
            </p>
-        ) : meals.length === 0 ? (
+        ) : todayMeals.length === 0 ? (
           <p style={{textAlign: 'center', color: 'var(--text-muted)'}}>Chưa có dữ liệu bữa ăn.</p>
         ) : (
           <div className="meal-list">
-            {meals.map(meal => (
+            {todayMeals.map(meal => (
               <div key={meal.id} className="meal-item">
                 <div className="meal-info">
                   <h4>{meal.name}</h4>
